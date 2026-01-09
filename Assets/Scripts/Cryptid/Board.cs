@@ -1,27 +1,32 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using RT.BigInteger;
 using UnityEngine;
 
-public class Board  
+public class Board
 {
     public readonly string id;
     public readonly BoardSpace[] spaces;
     public readonly List<Structure> structures;
-    public Board()
+    public Board(string ModuleName, int ModuleId)
     {
         string cols = "ABCDEFGHIJKL";
-        MapTile[] tiles = { new MapTile1(), new MapTile2(), new MapTile3(), new MapTile4(), new MapTile5(), new MapTile6() };
-        tiles.Shuffle();
+        List<MapTile> tiles = new List<MapTile> { new MapTile1(), new MapTile2(), new MapTile3(), new MapTile4(), new MapTile5(), new MapTile6() };
         spaces = new BoardSpace[108];
+        BigInt code = 0;
         id = "";
-        List<string> spaceIDs = new List<string>();
+
+        List<int> spaceIDs = new List<int>();
         structures = new List<Structure>();
-        for (int i = 0; i < tiles.Length; i++)
+        for (int i = 0; i < 6; i++)
         {
-            
             int startCol = (i % 2) * 6, startRow = (i / 2) * 3;
-            BoardTile[] bt = tiles[i].spaces;
-            switch(tiles[i].id)
+            int mapTileIx = Random.Range(0, tiles.Count);
+            code = (code * tiles.Count) + mapTileIx;
+            BoardTile[] bt = tiles[mapTileIx].spaces;
+            
+            var randVal = Random.Range(0, 2);
+            code = (code * 2) + randVal;
+            switch (tiles[mapTileIx].id)
             {
                 case 1:
                     id += "001";
@@ -42,15 +47,16 @@ public class Board
                     id += "110";
                     break;
             }
-            id += Random.Range(0, 2);
-            if (id[id.Length - 1] == '0')
+            tiles.RemoveAt(mapTileIx);
+            id += randVal;
+            if (randVal == 0)
             {
                 for (int j = 0; j < bt.Length; j++)
                 {
                     int col = startCol + (j % 6);
                     int row = startRow + (j / 6);
                     spaces[(row * 12) + col] = new BoardSpace(cols[col] + "" + (row + 1), bt[j].type, bt[j].territory);
-                    spaceIDs.Add(spaces[(row * 12) + col].id);
+                    spaceIDs.Add((row * 12) + col);
                 }
             }
             else
@@ -60,72 +66,42 @@ public class Board
                     int col = startCol + (j % 6);
                     int row = startRow + (j / 6);
                     spaces[(row * 12) + col] = new BoardSpace(cols[col] + "" + (row + 1), bt[bt.Length - j - 1].type, bt[bt.Length - j - 1].territory);
-                    spaceIDs.Add(spaces[(row * 12) + col].id);
+                    spaceIDs.Add((row * 12) + col);
                 }
             }
         }
         id = binToHex(id);
+
         spaceIDs.Shuffle();
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Red, spaceIDs[0]));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Red, spaceIDs[1]));
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Yellow, spaceIDs[2]));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Yellow, spaceIDs[3]));
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Blue, spaceIDs[4]));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Blue, spaceIDs[5]));
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.White, spaceIDs[6]));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.White, spaceIDs[7]));
-        foreach (Structure structure in structures)
-            id += structure.spaceName;
-    }
-    public Board(string id)
-    {
-        string cols = "ABCDEFGHIJKL";
-        spaces = new BoardSpace[108];
-        this.id = id;
-        MapTile[] tiles = { new MapTile1(), new MapTile2(), new MapTile3(), new MapTile4(), new MapTile5(), new MapTile6() };
-        structures = new List<Structure>();
-        string tileIds = "23456789ABCD";
-        for (int i = 0; i < 6; i++)
+        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Red, spaces[spaceIDs[0]].id));
+        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Red, spaces[spaceIDs[1]].id));
+        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Yellow, spaces[spaceIDs[2]].id));
+        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Yellow, spaces[spaceIDs[3]].id));
+        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Blue, spaces[spaceIDs[4]].id));
+        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Blue, spaces[spaceIDs[5]].id));
+        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.White, spaces[spaceIDs[6]].id));
+        structures.Add(new Structure(StructureType.StandingStone, StructureColor.White, spaces[spaceIDs[7]].id));
+        for (var i = 0; i < 8; i++)
         {
-            int n = (tileIds.IndexOf(id[i])) / 2;
-            int r = (tileIds.IndexOf(id[i])) % 2;
-            BoardTile[] bt = tiles[n].spaces;
-            int startCol = (i % 2) * 6, startRow = (i / 2) * 3;
-            if (r == 0)
-            {
-                for (int j = 0; j < bt.Length; j++)
-                {
-                    int col = startCol + (j % 6);
-                    int row = startRow + (j / 6);
-                    spaces[(row * 12) + col] = new BoardSpace(cols[col] + "" + (row + 1), bt[j].type, bt[j].territory);
-                }
-            }
-            else
-            {
-                for (int j = 0; j < bt.Length; j++)
-                {
-                    int col = startCol + (j % 6);
-                    int row = startRow + (j / 6);
-                    spaces[(row * 12) + col] = new BoardSpace(cols[col] + "" + (row + 1), bt[bt.Length - j - 1].type, bt[bt.Length - j - 1].territory);
-                }
-            }
+            id += structures[i].spaceName;
+            code = (code * 108) + spaceIDs[i];
         }
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Red, id.Substring(6, 2)));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Red, id.Substring(8, 2)));
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Yellow, id.Substring(10, 2)));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Yellow, id.Substring(12, 2)));
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.Blue, id.Substring(14, 2)));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.Blue, id.Substring(16, 2)));
-        structures.Add(new Structure(StructureType.AbandonedShack, StructureColor.White, id.Substring(18, 2)));
-        structures.Add(new Structure(StructureType.StandingStone, StructureColor.White, id.Substring(20, 2)));
-        
+        Debug.LogFormat("[{0} #{1}] Old Map Seed: {2}", ModuleName, ModuleId, id);
+        id = "";
+        var alphabet = "!#$%&*+-/123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\\abcdefghijklmnopqrstuvwxyz|~";
+        while (code > 0)
+        {
+            var q = code.DivideModulo(alphabet.Length);
+            id += alphabet[(int) q.Remainder];
+            code = q.Quotient;
+        }
     }
     private string binToHex(string bin)
     {
         string hex = "";
-        for(int i = 0; i < bin.Length; i+=4)
+        for (int i = 0; i < bin.Length; i += 4)
         {
-            switch(bin.Substring(i, 4))
+            switch (bin.Substring(i, 4))
             {
                 case "0000":
                     hex += "0";

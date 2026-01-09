@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
-using KModkit;
 using Rnd = UnityEngine.Random;
 
 public class Cryptid : MonoBehaviour
@@ -25,13 +23,11 @@ public class Cryptid : MonoBehaviour
     static Dictionary<string, List<List<string>>> spacesWithin;
     Rule[] rules;
     List<string> submitSpaces;
-    Dictionary<string, string> queryResults;
 
     public KMSelectable letterUp;
     public KMSelectable letterDown;
     public KMSelectable numberUp;
     public KMSelectable numberDown;
-    public KMSelectable query;
     public KMSelectable submit;
     public TextMesh mapSeedText;
     public TextMesh letterText;
@@ -53,7 +49,7 @@ public class Cryptid : MonoBehaviour
     void generatePuzzle()
     {
     tryagain:
-        Board board = new Board();
+        Board board = new Board(ModuleName, ModuleId);
         //board = new Board("6CB395C6A6L9G3I7H5I3H3");
         if (spacesWithin == null)
         {
@@ -76,16 +72,14 @@ public class Cryptid : MonoBehaviour
         submitSpaces = rg.generateSubmitSpaces();
         Debug.LogFormat("[{0} #{1}] Submit Spaces: {2} {3} {4} {5} {6} {7} {8} {9} {10} {11}", ModuleName, ModuleId, submitSpaces[0] + getUnfollowedRules(submitSpaces[0]), submitSpaces[1] + getUnfollowedRules(submitSpaces[1]), submitSpaces[2] + getUnfollowedRules(submitSpaces[2]), submitSpaces[3] + getUnfollowedRules(submitSpaces[3]), submitSpaces[4] + getUnfollowedRules(submitSpaces[4]), submitSpaces[5] + getUnfollowedRules(submitSpaces[5]), submitSpaces[6] + getUnfollowedRules(submitSpaces[6]), submitSpaces[7] + getUnfollowedRules(submitSpaces[7]), submitSpaces[8] + getUnfollowedRules(submitSpaces[8]), submitSpaces[9] + getUnfollowedRules(submitSpaces[9]));
 
-        mapSeedText.text = board.id.Substring(0, 11) + "\n" + board.id.Substring(11);
+        mapSeedText.text = board.id;
         for (int i = rules.Length; i < ruleMeshes.Length; i++)
             ruleMeshes[i].transform.localScale = new Vector3(0f, 0f, 0f);
         letterUp.OnInteract += delegate () { Audio.PlaySoundAtTransform(coordinateSFX.name, transform); letterCur = mod(letterCur + 1, 12); displayCoordinate(); return false; };
         letterDown.OnInteract += delegate () { Audio.PlaySoundAtTransform(coordinateSFX.name, transform); letterCur = mod(letterCur - 1, 12); displayCoordinate(); return false; };
         numberUp.OnInteract += delegate () { Audio.PlaySoundAtTransform(coordinateSFX.name, transform); numberCur = mod(numberCur + 1, 9); displayCoordinate(); return false; };
         numberDown.OnInteract += delegate () { Audio.PlaySoundAtTransform(coordinateSFX.name, transform); numberCur = mod(numberCur - 1, 9); displayCoordinate(); return false; };
-        query.OnInteract += delegate () { pressedQuery(); return false; };
         submit.OnInteract += delegate () { pressedSubmit(); return false; };
-        queryResults = new Dictionary<string, string>();
         displayCoordinate();
     }
     private string getUnfollowedRules(string space)
@@ -116,16 +110,9 @@ public class Cryptid : MonoBehaviour
         else
         {
             for (int i = 0; i < numRules; i++)
+            {
                 ruleMeshes[i].material = ruleMats[i];
-            if (queryResults.ContainsKey(coord))
-            {
-                for (int i = 0; i < numRules; i++)
-                    ruleTexts[i].text = queryResults[coord][i] + "";
-            }
-            else
-            {
-                foreach (TextMesh rt in ruleTexts)
-                    rt.text = "";
+                ruleTexts[i].text = rules[i].validSpaces.Contains(coord) ? "O" : "X";
             }
         }
     }
@@ -141,25 +128,6 @@ public class Cryptid : MonoBehaviour
                 Strike();
         }
     }
-    void pressedQuery()
-    {
-        string coord = letterText.text + numberText.text;
-        if (!submitSpaces.Contains(coord))
-        {
-            if (!queryResults.ContainsKey(coord))
-                displayQuery(coord);
-        }
-    }
-    void displayQuery(string coord)
-    {
-        string result = "";
-        foreach (Rule rule in rules)
-            result += rule.validSpaces.Contains(coord) ? "O" : "X";
-        Debug.LogFormat("[{0} #{1}] Query result for {2}: {3}", ModuleName, ModuleId, coord, result);
-        queryResults.Add(coord, result);
-        Audio.PlaySoundAtTransform(querySFX.name, transform);
-        displayCoordinate();
-    }
     void Solve()
     {
         Audio.PlaySoundAtTransform(solveSFX.name, transform);
@@ -168,7 +136,6 @@ public class Cryptid : MonoBehaviour
         numberUp.OnInteract = null;
         numberDown.OnInteract = null;
         submit.OnInteract = null;
-        query.OnInteract = null;
         letterText.text = "";
         numberText.text = "";
         mapSeedText.text = "";
@@ -181,7 +148,7 @@ public class Cryptid : MonoBehaviour
         module.HandleStrike();
         string coord = letterText.text + numberText.text;
         submitSpaces.Remove(coord);
-        displayQuery(coord);
+        displayCoordinate();
     }
 
     
@@ -194,7 +161,7 @@ public class Cryptid : MonoBehaviour
 
     bool TPautosolve = false;
 #pragma warning disable 414
-    private readonly string TwitchHelpMessage = @"!{0} (C)ycle will cycle through all the coordinates. !{0} (Q)uery F3 will query the F3 space. !{0} (S)ubmit G7 will submit the G7 space.";
+    private readonly string TwitchHelpMessage = @"!{0} (C)ycle [ABCDEFGHIJKL123456789] will cycle through the coordinates that contains those letters/numbers. !{0} (T)ile F3 will go to the F3 space. !{0} (S)ubmit G7 will submit the G7 space. !{0} (S)ubmit will retrieve all spaces that are black.";
 #pragma warning restore 414
 
     IEnumerator ProcessTwitchCommand(string command)
@@ -202,37 +169,47 @@ public class Cryptid : MonoBehaviour
         if(!TPautosolve)
         {
             string[] param = command.ToUpper().Split(' ');
-            if ((Regex.IsMatch(param[0], @"^\s*CYCLE\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) || Regex.IsMatch(param[0], @"^\s*C\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) && param.Length == 1)
+            if ((Regex.IsMatch(param[0], @"^\s*CYCLE\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) || Regex.IsMatch(param[0], @"^\s*C\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) && param.Length == 2 && isValidCoordCycle(param[1]))
             {
                 yield return null;
-                while (letterText.text[0] != 'A')
+                string letters = "", numbers = "";
+                foreach(char cha in param[1])
                 {
-                    letterUp.OnInteract();
-                    yield return new WaitForSeconds(0.1f);
+                    if ("123456789".Contains(cha))
+                    {
+                        if(!numbers.Contains(cha))
+                            numbers += cha;
+                    }
+                    else
+                    {
+                        if (!letters.Contains(cha))
+                            letters += cha;
+                    } 
                 }
-                while (numberText.text[0] != '1')
+                foreach(char letter in letters)
                 {
-                    numberUp.OnInteract();
-                    yield return new WaitForSeconds(0.1f);
-                }
-                yield return new WaitForSeconds(1f);
-                for (int i = 0; i < 12; i++)
-                {
-                    for(int j = 0; j < 9; j++)
+                    yield return "trycancel Cycling has been cancelled due to a cancel request.";
+                    while (letterText.text[0] != letter)
+                    {
+                        letterUp.OnInteract();
+                        yield return new WaitForSeconds(0.1f);
+                    }
+                    foreach (char number in numbers)
                     {
                         yield return "trycancel Cycling has been cancelled due to a cancel request.";
-                        numberUp.OnInteract();
+                        while (numberText.text[0] != number)
+                        {
+                            numberUp.OnInteract();
+                            yield return new WaitForSeconds(0.1f);
+                        }
                         yield return new WaitForSeconds(1f);
                     }
-                    yield return "trycancel Cycling has been cancelled due to a cancel request.";
-                    letterUp.OnInteract();
-                    yield return new WaitForSeconds(1f);
                 }
             }
-            else if ((Regex.IsMatch(param[0], @"^\s*QUERY\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) || Regex.IsMatch(param[0], @"^\s*Q\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) && param.Length == 2 && isValidSpace(param[1]))
+            else if ((Regex.IsMatch(param[0], @"^\s*TILE\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) || Regex.IsMatch(param[0], @"^\s*S\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) && param.Length == 2 && isValidSpace(param[1]))
             {
                 yield return null;
-                while(letterText.text[0] != param[1][0])
+                while (letterText.text[0] != param[1][0])
                 {
                     letterUp.OnInteract();
                     yield return new WaitForSeconds(0.1f);
@@ -242,7 +219,6 @@ public class Cryptid : MonoBehaviour
                     numberUp.OnInteract();
                     yield return new WaitForSeconds(0.1f);
                 }
-                query.OnInteract();
             }
             else if ((Regex.IsMatch(param[0], @"^\s*SUBMIT\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) || Regex.IsMatch(param[0], @"^\s*S\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) && param.Length == 2 && isValidSpace(param[1]))
             {
@@ -258,6 +234,14 @@ public class Cryptid : MonoBehaviour
                     yield return new WaitForSeconds(0.1f);
                 }
                 submit.OnInteract();
+            }
+            else if ((Regex.IsMatch(param[0], @"^\s*SUBMIT\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) || Regex.IsMatch(param[0], @"^\s*S\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) && param.Length == 1)
+            {
+                yield return null;
+                string str = "";
+                foreach (string space in submitSpaces)
+                    str += space + " ";
+                yield return "sendtochat " + str;
             }
             else
                 yield return "sendtochat An error occured because the user inputted something wrong.";
@@ -289,5 +273,18 @@ public class Cryptid : MonoBehaviour
         }
         submit.OnInteract();
     }
-
+    bool isValidCoordCycle(string str)
+    {
+        bool b1 = false, b2 = false;
+        foreach(char cha in str)
+        {
+            if (!"ABCDEFGHIJKL123456789".Contains(cha))
+                return false;
+            else if ("123456789".Contains(cha))
+                b1 = true;
+            else
+                b2 = true;
+        }
+        return b1 && b2;
+    }
 }
